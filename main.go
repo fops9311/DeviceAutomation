@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"sync"
 	"time"
 )
 
@@ -36,7 +35,23 @@ func main() {
 			volume: 12,
 		},
 		{
-			name:   "Ginnes 5",
+			name:   "Ginnes 2",
+			volume: 12,
+		},
+		{
+			name:   "Cheshskoe",
+			volume: 10,
+		},
+		{
+			name:   "Hadizhinskoe",
+			volume: 11,
+		},
+		{
+			name:   "Ginnes 3",
+			volume: 12,
+		},
+		{
+			name:   "Ginnes 4",
 			volume: 12,
 		},
 	}
@@ -73,12 +88,33 @@ func main() {
 		}()
 		return out
 	}
+	Tank1.program = func(in Recipe, done <-chan interface{}) {
+		fmt.Printf("Processing %v...\n", in.GetName())
+		Delay := time.NewTimer(time.Second * 1)
+		<-Delay.C
+	}
+	Tank2.program = func(in Recipe, done <-chan interface{}) {
+		fmt.Printf("Processing %v...\n", in.GetName())
+		Delay := time.NewTimer(time.Second * 1)
+		<-Delay.C
+	}
+	Tank3.program = func(in Recipe, done <-chan interface{}) {
+		fmt.Printf("Processing %v...\n", in.GetName())
+		Delay := time.NewTimer(time.Second * 1)
+		<-Delay.C
+	}
 	startTime := time.Now()
-
-	end := RecipeReciever(Tank1.RecipePipeline(RecipeSender(&ProductionPlan, done)))
-	<-end
+	<-RecipeReciever(
+		Tank3.RecipePipeline(
+			Tank2.RecipePipeline(
+				Tank1.RecipePipeline(
+					RecipeSender(&ProductionPlan, done),
+				),
+			),
+		),
+	)
 	fmt.Println(time.Now().Sub(startTime))
-	//close(done)
+	close(done)
 }
 
 type Recipe interface {
@@ -99,14 +135,14 @@ func (h BeerRecipe) GetName() string {
 
 type Device interface {
 	init()
-	RecipePipeline(in chan Recipe) (out chan Recipe)
+	RecipePipeline(in <-chan Recipe, done <-chan interface{}) (<-chan Recipe, <-chan interface{})
 }
 type Tank struct {
 	name    string
 	message string
 	state   int
 	recipe  Recipe
-	mutex   sync.Mutex
+	program func(in Recipe, done <-chan interface{})
 }
 
 func (h *Tank) init() {
@@ -120,15 +156,13 @@ func (h *Tank) RecipePipeline(in <-chan Recipe, done <-chan interface{}) (<-chan
 		for {
 			select {
 			case h.recipe = <-in:
-				Delay := time.NewTimer(time.Second * 1)
-				<-Delay.C
-				fmt.Printf("Recipe %v recieved in %v\n", h.recipe.GetName(), h.name)
+				h.program(h.recipe, outDone)
+				fmt.Printf("Recipe %v processed in %v\n", h.recipe.GetName(), h.name)
 				out <- h.recipe
 			case <-done:
 				close(outDone)
 				return
 			}
-
 		}
 	}()
 	return out, outDone
