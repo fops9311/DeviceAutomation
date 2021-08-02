@@ -88,28 +88,14 @@ func main() {
 		}()
 		return out
 	}
-	Tank1.program = func(in <-chan Recipe, done <-chan interface{}) (<-chan Recipe, <-chan interface{}) {
-		out := make(chan Recipe)
-		outDone := make(chan interface{})
-
-		go func() {
-			select {
-			case recipe := <-in:
-				fmt.Printf("Processing %v...\n", recipe.GetName())
-				Delay := time.NewTimer(time.Second * 1)
-				<-Delay.C
-				out <- recipe
-				fmt.Printf("Processing %v... ended\n", recipe.GetName())
-				close(outDone)
-				return
-			case <-done:
-				close(outDone)
-				return
-			}
-		}()
-		return out, outDone
+	Program1 := &testProgram{
+		name: "Prog1",
 	}
-	Tank2.program = Tank1.program
+	Program2 := &testProgram{
+		name: "Prog2",
+	}
+	Tank1.program = Program1
+	Tank2.program = Program2
 	Tank3.program = Tank1.program
 
 	startTime := time.Now()
@@ -151,7 +137,7 @@ type Tank struct {
 	message string
 	state   int
 	recipe  Recipe
-	program func(in <-chan Recipe, done <-chan interface{}) (<-chan Recipe, <-chan interface{})
+	program Program
 }
 
 func (h *Tank) init() {
@@ -171,7 +157,7 @@ func (h *Tank) RecipePipeline(in <-chan Recipe, done <-chan interface{}) (<-chan
 			case h.recipe = <-in:
 				fmt.Printf("Recipe %v processed in %v\n", h.recipe.GetName(), h.name)
 
-				progOut, progDone := h.program(progIn, progInDone)
+				progOut, progDone := h.program.Run(progIn, progInDone)
 
 				progIn <- h.recipe
 
@@ -182,6 +168,35 @@ func (h *Tank) RecipePipeline(in <-chan Recipe, done <-chan interface{}) (<-chan
 				close(outDone)
 				return
 			}
+		}
+	}()
+	return out, outDone
+}
+
+type Program interface {
+	Run(in <-chan Recipe, done <-chan interface{}) (<-chan Recipe, <-chan interface{})
+}
+
+type testProgram struct {
+	name string
+}
+
+func (h *testProgram) Run(in <-chan Recipe, done <-chan interface{}) (<-chan Recipe, <-chan interface{}) {
+	out := make(chan Recipe)
+	outDone := make(chan interface{})
+	go func() {
+		select {
+		case recipe := <-in:
+			fmt.Printf("%v Processing %v...\n", h.name, recipe.GetName())
+			Delay := time.NewTimer(time.Second * 1)
+			<-Delay.C
+			out <- recipe
+			fmt.Printf("Processing with %v of %v... ended\n", h.name, recipe.GetName())
+			close(outDone)
+			return
+		case <-done:
+			close(outDone)
+			return
 		}
 	}()
 	return out, outDone
