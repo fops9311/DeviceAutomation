@@ -88,21 +88,30 @@ func main() {
 		}()
 		return out
 	}
-	Tank1.program = func(in Recipe, done <-chan interface{}) {
-		fmt.Printf("Processing %v...\n", in.GetName())
-		Delay := time.NewTimer(time.Second * 1)
-		<-Delay.C
+	Tank1.program = func(in <-chan Recipe, done <-chan interface{}) (<-chan Recipe, <-chan interface{}) {
+		out := make(chan Recipe)
+		outDone := make(chan interface{})
+
+		go func() {
+			select {
+			case recipe := <-in:
+				fmt.Printf("Processing %v...\n", recipe.GetName())
+				Delay := time.NewTimer(time.Second * 1)
+				<-Delay.C
+				out <- recipe
+				fmt.Printf("Processing %v... ended\n", recipe.GetName())
+				close(outDone)
+				return
+			case <-done:
+				close(outDone)
+				return
+			}
+		}()
+		return out, outDone
 	}
-	Tank2.program = func(in Recipe, done <-chan interface{}) {
-		fmt.Printf("Processing %v...\n", in.GetName())
-		Delay := time.NewTimer(time.Second * 1)
-		<-Delay.C
-	}
-	Tank3.program = func(in Recipe, done <-chan interface{}) {
-		fmt.Printf("Processing %v...\n", in.GetName())
-		Delay := time.NewTimer(time.Second * 1)
-		<-Delay.C
-	}
+	Tank2.program = Tank1.program
+	Tank3.program = Tank1.program
+
 	startTime := time.Now()
 	<-RecipeReciever(
 		Tank3.RecipePipeline(
@@ -142,7 +151,7 @@ type Tank struct {
 	message string
 	state   int
 	recipe  Recipe
-	program func(in Recipe, done <-chan interface{})
+	program func(in <-chan Recipe, done <-chan interface{}) (<-chan Recipe, <-chan interface{})
 }
 
 func (h *Tank) init() {
@@ -152,14 +161,24 @@ func (h *Tank) init() {
 func (h *Tank) RecipePipeline(in <-chan Recipe, done <-chan interface{}) (<-chan Recipe, <-chan interface{}) {
 	out := make(chan Recipe)
 	outDone := make(chan interface{})
+
+	progIn := make(chan Recipe)
+	progInDone := make(chan interface{})
+
 	go func() {
 		for {
 			select {
 			case h.recipe = <-in:
-				h.program(h.recipe, outDone)
 				fmt.Printf("Recipe %v processed in %v\n", h.recipe.GetName(), h.name)
-				out <- h.recipe
+
+				progOut, progDone := h.program(progIn, progInDone)
+
+				progIn <- h.recipe
+
+				out <- <-progOut
+				<-progDone
 			case <-done:
+				close(progInDone)
 				close(outDone)
 				return
 			}
