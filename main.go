@@ -3,9 +3,14 @@ package main
 import (
 	"fmt"
 	"time"
+
+	e "github.com/fops9311/entangled"
 )
 
 func main() {
+	e1, e := e.Entangle()
+	_, _ = e, e1
+
 	Tank1 := Tank{
 		name:    "T1",
 		message: "this is Tank1",
