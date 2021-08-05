@@ -117,10 +117,6 @@ func main() {
 	close(done)
 }
 
-type Recipe interface {
-	GetName() string
-}
-
 type BeerRecipe struct {
 	name   string
 	volume float32
@@ -133,10 +129,6 @@ func (h BeerRecipe) GetName() string {
 	}
 }
 
-type Device interface {
-	init()
-	RecipePipeline(in <-chan Recipe, done <-chan interface{}) (<-chan Recipe, <-chan interface{})
-}
 type Tank struct {
 	name    string
 	message string
