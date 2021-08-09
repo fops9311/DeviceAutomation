@@ -113,7 +113,7 @@ func main() {
 			),
 		),
 	)
-	fmt.Println(time.Now().Sub(startTime))
+	fmt.Println(time.Since(startTime))
 	close(done)
 }
 
