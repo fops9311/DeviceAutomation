@@ -198,3 +198,12 @@ func (h *testProgram) Run(in <-chan Recipe, done <-chan interface{}) (<-chan Rec
 	}()
 	return out, outDone
 }
+
+type Device interface {
+	init()
+	RecipePipeline(in <-chan Recipe, done <-chan interface{}) (<-chan Recipe, <-chan interface{})
+}
+
+type Recipe interface {
+	GetName() string
+}
